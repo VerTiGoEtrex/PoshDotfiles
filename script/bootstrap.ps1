@@ -3,8 +3,7 @@
 
 $ErrorActionPreference = "Stop"
 
-cd $PSScriptRoot/..
-$local:DOTFILES_ROOT=(Get-Location)
+
 
 function info {
     Write-Host "  [ .. ] " -ForegroundColor Cyan -NoNewline
@@ -107,20 +106,34 @@ function install_dotfiles {
 
     foreach ($local:src in Get-ChildItem -Depth 2 -Include *.symlink -Recurse) {
         $local:prefixFilePath = $local:src.parent.fullname + "\#ROOT"
-        info ("DirectoryName: " + $local:src.parent.fullname)
-        info ("Prefix File PAth: " + $local:prefixFilePath)
         $local:dst = "$home\test_dotfiles\" #Debugging purposes
         #$local:dst = "$home\"
         if (Test-Path $local:prefixFilePath -PathType leaf) {
             # This folder wants to be symlinked somewhere else. Symlink it into the prefix stored in #ROOT, creating if necessary.
             $local:dst += Get-Content $local:prefixFilePath
-            info ("DstDir: " + $local:dst)
             New-Item -path $local:dst -type directory -Force | out-null
         }
         $local:dst += ($src.Name -replace (".{" + ".symlink".Length + "}$"))
         link_file $local:src $local:dst $overwrite_all $:backup_all $skip_all
     }
 }
+
+# Main
+
+if (-not (Get-Module -ListAvailable -Name PowerShellGet)) {
+    error "Couldn't find the ``PowerShellGet`` module. Are you running Windows 10 or above?"
+}
+
+# Check for and install chocolatey
+$ChocoInstallPath = "C:\ProgramData\Chocolatey\bin"
+
+if (!(Test-Path $ChocoInstallPath)) {
+    info "Chocolatey not installed. Installing."
+    iex ((new-object net.webclient).DownloadString('https://chocolatey.org/install.ps1'))
+}
+
+cd $PSScriptRoot/..
+$local:DOTFILES_ROOT=(Get-Location)
 
 setup_gitconfig
 install_dotfiles
