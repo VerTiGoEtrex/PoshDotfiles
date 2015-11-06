@@ -48,31 +48,66 @@ function link_file {
     $local:backup = $FALSE
     $local:skip = $FALSE
     
+    # check if the expected destination path already exists in some form
     if (Test-Path($local:dst)) {
-        info ("File exists!")
-        $local:currentSrc=Get-Item($local:dst)
-        while ($local:currentSrc.LinkType) {
-            info "link detected!"
-            $local:currentSrc=(Get-Item($local:currentSrc)).Target
-            info ($local:currentSrc)
+        # already exists, let's see if it's a link from a previous run and decide what to do
+        if (!($overwrite_all -or $backup_all -or $skip_all)) {
+            $local:currentSrc=Get-Item($local:dst)
+            if ($local:currentSrc.LinkType) {
+                # Follow symlinks TODO: hardlink support, etc.
+                $local:currentSrc=($local:currentSrc).Target
+            }
+            if ($local:currentSrc -eq ($local:src).FullName) {
+                # Already linked
+                $local:skip = $TRUE
+            } else {
+                user ("File already exists: " + $local:dst + " (linked to) "+ $local:currentSrc + ", what do you want to do?
+                [s]kip, [S]kip all, [o]verwrite, [O]verwriteall, [b]ackup, [B]ackup all?")
+                $local:ans = Read-Host
+                switch ($local:ans) {
+                    "s" {$local:skip = $TRUE}
+                    "S" {$skip_all = $TRUE}
+                    "o" {$local:overwrite = $TRUE}
+                    "O" {$overwrite_all = $TRUE}
+                    "b" {$local:backup = $TRUE}
+                    "B" {$backup_all = $TRUE}
+                }
+            }
         }
-        if ($overwrite_all -or $backup_all -or $skip_all) {
-            $local:currentSrc = 0;
+
+        # let's resolve the conflict
+        $local:overwrite = $local:overwrite -or $overwrite_all
+        $local:backup = $local:backup -or $backup_all
+        $local:skip = $local:skip -or $skip_all
+
+        if ($local:overwrite) {
+            remove-item $local:dst -Recurse -Force
+            success ("removed " + $local:dst)
         }
+        if ($local:backup) {
+            Move-Item -Path $local:dst -Destination ($local:dst + ".backup") -Force
+            success ("moved " + $local:dst + " to " + $local:dst + ".backup")
+        }
+        if ($local:skip) {
+            success ("skipped " + $local:src)
+        }
+    }
+    if (!($local:skip)) {
+        New-Item -ItemType SymbolicLink -Path $local:dst -Target $local:src | out-null
+        success ("linked " + $local:src + " to " + $local:dst)
     }
 }
 
 function install_dotfiles {
     info 'installing dotfiles'
 
-    $overwrite_all = $TRUE
+    $overwrite_all = $FALSE
     $backup_all = $FALSE
     $skip_all = $FALSE
 
     foreach ($local:src in Get-ChildItem -Depth 2 -Include *.symlink -Recurse) {
-        $local:dst = "$home\\test_dotfiles\\" + $src.basename
-        info($local:dst)
-        #$local:dst = "$home\\" + $src.basename
+        #$local:dst = "$home\test_dotfiles\" + $src.basename #Debugging purposes
+        $local:dst = "$home\\" + $src.basename
         link_file $local:src $local:dst $overwrite_all $:backup_all $skip_all
     }
 }
