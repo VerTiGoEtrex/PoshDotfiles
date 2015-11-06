@@ -106,8 +106,18 @@ function install_dotfiles {
     $skip_all = $FALSE
 
     foreach ($local:src in Get-ChildItem -Depth 2 -Include *.symlink -Recurse) {
-        #$local:dst = "$home\test_dotfiles\" + $src.basename #Debugging purposes
-        $local:dst = "$home\\" + $src.basename
+        $local:prefixFilePath = $local:src.parent.fullname + "\#ROOT"
+        info ("DirectoryName: " + $local:src.parent.fullname)
+        info ("Prefix File PAth: " + $local:prefixFilePath)
+        $local:dst = "$home\test_dotfiles\" #Debugging purposes
+        #$local:dst = "$home\"
+        if (Test-Path $local:prefixFilePath -PathType leaf) {
+            # This folder wants to be symlinked somewhere else. Symlink it into the prefix stored in #ROOT, creating if necessary.
+            $local:dst += Get-Content $local:prefixFilePath
+            info ("DstDir: " + $local:dst)
+            New-Item -path $local:dst -type directory -Force | out-null
+        }
+        $local:dst += ($src.Name -replace (".{" + ".symlink".Length + "}$"))
         link_file $local:src $local:dst $overwrite_all $:backup_all $skip_all
     }
 }
