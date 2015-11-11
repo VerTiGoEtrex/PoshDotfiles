@@ -34,7 +34,7 @@ function setup_gitconfig {
         user ' - What is your github author email?'
         $local:git_authoremail = Read-Host
 
-        cat git/.gitconfig.symlink.example | %{$_ -replace "AUTHORNAME", $local:git_authorname} | %{$_ -replace "AUTHOREMAIL", $local:git_authoremail} > git/.gitconfig.symlink
+        cat git/.gitconfig.symlink.example | %{$_ -replace "AUTHORNAME", $local:git_authorname} | %{$_ -replace "AUTHOREMAIL", $local:git_authoremail} | out-file git/.gitconfig.symlink -Encoding ascii
 
         success 'gitconfig'
     }
@@ -104,10 +104,16 @@ function install_dotfiles {
     $backup_all = $FALSE
     $skip_all = $FALSE
 
-    foreach ($local:src in Get-ChildItem -Depth 2 -Include *.symlink -Recurse) {
-        $local:prefixFilePath = $local:src.parent.fullname + "\#ROOT"
-        $local:dst = "$home\test_dotfiles\" #Debugging purposes
-        #$local:dst = "$home\"
+    foreach ($local:src in Get-ChildItem ./*/*.symlink) {
+        if ($local:src -is [System.IO.DirectoryInfo]) {
+            $local:prefixFilePath = $local:src.fullname + "\#ROOT"
+        } elseif ($local:src -is [System.IO.FileInfo]) {
+            $local:prefixFilePath = $local:src.parent.fullname + "\#ROOT"
+        } else {
+            failure "$local:src is neither a DirectoryInfo nor a FileInfo. Please report an issue on the github repo!"
+        }
+        #$local:dst = "$home\test_dotfiles\" #Debugging purposes
+        $local:dst = "$home\"
         if (Test-Path $local:prefixFilePath -PathType leaf) {
             # This folder wants to be symlinked somewhere else. Symlink it into the prefix stored in #ROOT, creating if necessary.
             $local:dst += Get-Content $local:prefixFilePath
